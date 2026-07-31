@@ -70,11 +70,19 @@ async function composeGroup<TOptions extends CommonOrchestratorCommandOptions>(
 
     if (node instanceof ComposeProfileGroupTreeItem && node.profileName) {
         // Ask the user whether to apply the command with the profile flag (which includes default
-        // services too) or only to the explicit service names in this profile (excluding defaults).
+        // services too), only to the explicit service names in this profile (excluding defaults),
+        // or strictly to services exclusive to this profile.
         const scope = await pickComposeProfileCommandScope(context, node);
         if (scope === 'profile') {
             // Use --profile flag: command affects both this profile's services AND default services
             profileArg = [node.profileName];
+        } else if (scope === 'exclusive') {
+            // Use explicit service list for EXCLUSIVE services only
+            servicesArg = node.getExclusiveServiceNames();
+            if (servicesArg.length === 0) {
+                context.errorHandling.suppressReportIssue = true;
+                throw new Error(l10n.t('There are no services exclusive to the "{0}" profile.', node.label));
+            }
         } else {
             // Use explicit service list: command affects only the services belonging to this profile
             servicesArg = node.getServiceNames();
@@ -143,11 +151,14 @@ async function getComposeGroupLabels(node: ComposeGroupNode): Promise<{ [key: st
 
 /**
  * Prompts the user to choose how the compose action should apply to a profile.
- * Returns 'profile' to use the --profile flag (includes default services too)
- * or 'services' to apply only to the specific services in this profile.
+ * Returns 'profile' to use the --profile flag (includes default services too),
+ * 'services' to apply only to the specific services in this profile,
+ * or 'exclusive' to apply only to services that belong strictly to this profile.
  */
-async function pickComposeProfileCommandScope(context: IActionContext, node: ComposeProfileGroupTreeItem): Promise<'profile' | 'services'> {
-    const picks: IAzureQuickPickItem<'profile' | 'services'>[] = [
+async function pickComposeProfileCommandScope(context: IActionContext, node: ComposeProfileGroupTreeItem): Promise<'profile' | 'services' | 'exclusive'> {
+    const exclusiveNames = node.getExclusiveServiceNames();
+    
+    const picks: IAzureQuickPickItem<'profile' | 'services' | 'exclusive'>[] = [
         {
             label: l10n.t('Apply to this profile and default services'),
             description: l10n.t('Runs: docker compose --profile {0} <command>', node.label),
@@ -157,6 +168,13 @@ async function pickComposeProfileCommandScope(context: IActionContext, node: Com
             label: l10n.t('Apply only to services in this profile'),
             description: l10n.t('Runs: docker compose <command> {0}', node.getServiceNames().join(' ')),
             data: 'services'
+        },
+        {
+            label: l10n.t('Apply only to exclusive services'),
+            description: exclusiveNames.length 
+                ? l10n.t('Runs: docker compose <command> {0}', exclusiveNames.join(' '))
+                : l10n.t('No services are exclusive to this profile'),
+            data: 'exclusive'
         },
     ];
 

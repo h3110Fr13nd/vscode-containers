@@ -32,18 +32,33 @@ export class ComposeProfileGroupTreeItem extends AzExtParentTreeItem {
     /** Lazily-built container tree items. */
     private _childTreeItems: ContainerTreeItem[] | undefined;
 
+    private readonly _serviceProfiles?: Map<string, string[]>;
+
     public constructor(
         parent: ContainerGroupTreeItem,
         group: string,
         items: DockerContainerInfo[],
         profileName?: string,
+        serviceProfiles?: Map<string, string[]>,
     ) {
         super(parent);
         // Use a stable ID so the tree can diff updates correctly
         this.id = `${parent.id}|profile:${group}`;
         this._items = items;
         this.profileName = profileName;
+        this._serviceProfiles = serviceProfiles;
         this.initialCollapsibleState = TreeItemCollapsibleState.Expanded;
+    }
+
+    public getExclusiveServiceNames(): string[] {
+        const names = this.getServiceNames();
+        if (!this._serviceProfiles || !this.profileName) {
+            return names; // Default fallback
+        }
+        return names.filter(name => {
+            const profiles = this._serviceProfiles!.get(name);
+            return profiles && profiles.length === 1 && profiles[0] === this.profileName;
+        });
     }
 
     public get label(): string {

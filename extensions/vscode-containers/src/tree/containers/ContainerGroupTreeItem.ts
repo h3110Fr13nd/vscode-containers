@@ -110,11 +110,11 @@ export class ContainerGroupTreeItem extends LocalGroupTreeItemBase<DockerContain
 
         const children: AzExtTreeItem[] = [];
         if (defaultContainers.length > 0) {
-            children.push(new ComposeProfileGroupTreeItem(this, '__default__', defaultContainers));
+            children.push(new ComposeProfileGroupTreeItem(this, '__default__', defaultContainers, undefined, serviceProfiles));
         }
 
         for (const profile of [...profileContainers.keys()].sort((a, b) => a.localeCompare(b))) {
-            children.push(new ComposeProfileGroupTreeItem(this, profile, profileContainers.get(profile) ?? [], profile));
+            children.push(new ComposeProfileGroupTreeItem(this, profile, profileContainers.get(profile) ?? [], profile, serviceProfiles));
         }
 
         if (children.length > 0) {
