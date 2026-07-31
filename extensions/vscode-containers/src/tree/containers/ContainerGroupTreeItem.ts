@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { AzExtTreeItem, IActionContext } from "@microsoft/vscode-azext-utils";
-import { ThemeIcon, TreeItemCollapsibleState, l10n } from "vscode";
+import { ThemeIcon, TreeItemCollapsibleState } from "vscode";
 import { LocalGroupTreeItemBase } from "../LocalGroupTreeItemBase";
 import { LocalRootTreeItemBase } from "../LocalRootTreeItemBase";
 import { getCommonGroupIcon } from "../settings/CommonProperties";

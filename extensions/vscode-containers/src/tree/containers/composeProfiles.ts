@@ -85,7 +85,6 @@ export async function getComposeServiceProfiles(
             return undefined;
         }
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const config = JSON.parse(jsonMatch[0]) as {
             services?: {
                 [name: string]: {

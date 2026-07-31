@@ -5,7 +5,7 @@
 
 import { AzExtParentTreeItem, AzExtTreeItem, IActionContext } from "@microsoft/vscode-azext-utils";
 import { ThemeIcon, TreeItemCollapsibleState, l10n } from "vscode";
-import { ContainerGroupTreeItem } from "./ContainerGroupTreeItem";
+import type { ContainerGroupTreeItem } from "./ContainerGroupTreeItem";
 import { ContainerTreeItem } from "./ContainerTreeItem";
 import { DockerContainerInfo } from "./ContainersTreeItem";
 
@@ -56,7 +56,7 @@ export class ComposeProfileGroupTreeItem extends AzExtParentTreeItem {
             return names; // Default fallback
         }
         return names.filter(name => {
-            const profiles = this._serviceProfiles!.get(name);
+            const profiles = this._serviceProfiles?.get(name);
             return profiles && profiles.length === 1 && profiles[0] === this.profileName;
         });
     }
