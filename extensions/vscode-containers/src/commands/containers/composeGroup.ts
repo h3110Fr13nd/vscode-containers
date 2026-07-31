@@ -3,38 +3,37 @@
  *  Licensed under the MIT License. See LICENSE.md in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActionContext } from '@microsoft/vscode-azext-utils';
-import { IAzureQuickPickItem } from '@microsoft/vscode-azext-utils';
+import { IActionContext, IAzureQuickPickItem } from '@microsoft/vscode-azext-utils';
 import { CommonOrchestratorCommandOptions, IContainerOrchestratorClient, LogsCommandOptions, VoidCommandResponse } from '@microsoft/vscode-container-client';
 import * as path from 'path';
 import { l10n } from 'vscode';
 import { ext } from '../../extensionVariables';
 import { TaskCommandRunnerFactory } from '../../runtimes/runners/TaskCommandRunnerFactory';
-import { ContainerGroupTreeItem } from '../../tree/containers/ContainerGroupTreeItem';
 import { ComposeProfileGroupTreeItem } from '../../tree/containers/ComposeProfileGroupTreeItem';
+import { ContainerGroupTreeItem } from '../../tree/containers/ContainerGroupTreeItem';
 import { ContainerTreeItem } from '../../tree/containers/ContainerTreeItem';
 
 type ComposeGroupNode = ContainerGroupTreeItem | ComposeProfileGroupTreeItem;
 
 export async function composeGroupLogs(context: IActionContext, node: ComposeGroupNode): Promise<void> {
     // Since we're not interested in the output, we can pretend this is a `VoidCommandResponse`
-    return composeGroup<LogsCommandOptions>(context, (client, options) => client.logs(options) as Promise<VoidCommandResponse>, node, { follow: true, tail: 1000 });
+    return composeGroup<LogsCommandOptions>(context, (client, options) => client.logs(options) as Promise<VoidCommandResponse>, node, { follow: true, tail: 1000 }, 'logs');
 }
 
 export async function composeGroupStart(context: IActionContext, node: ComposeGroupNode): Promise<void> {
-    return composeGroup(context, (client, options) => client.start(options), node);
+    return composeGroup(context, (client, options) => client.start(options), node, undefined, 'start');
 }
 
 export async function composeGroupStop(context: IActionContext, node: ComposeGroupNode): Promise<void> {
-    return composeGroup(context, (client, options) => client.stop(options), node);
+    return composeGroup(context, (client, options) => client.stop(options), node, undefined, 'stop');
 }
 
 export async function composeGroupRestart(context: IActionContext, node: ComposeGroupNode): Promise<void> {
-    return composeGroup(context, (client, options) => client.restart(options), node);
+    return composeGroup(context, (client, options) => client.restart(options), node, undefined, 'restart');
 }
 
 export async function composeGroupDown(context: IActionContext, node: ComposeGroupNode): Promise<void> {
-    return composeGroup(context, (client, options) => client.down(options), node);
+    return composeGroup(context, (client, options) => client.down(options), node, undefined, 'down');
 }
 
 type AdditionalOptions<TOptions extends CommonOrchestratorCommandOptions> = Omit<TOptions, keyof CommonOrchestratorCommandOptions>;
@@ -43,7 +42,8 @@ async function composeGroup<TOptions extends CommonOrchestratorCommandOptions>(
     context: IActionContext,
     composeCommandCallback: (client: IContainerOrchestratorClient, options: TOptions) => Promise<VoidCommandResponse>,
     node: ComposeGroupNode,
-    additionalOptions?: AdditionalOptions<TOptions>
+    additionalOptions?: AdditionalOptions<TOptions>,
+    commandName: string = '<command>'
 ): Promise<void> {
     if (!node) {
         await ext.containersTree.refresh(context);
@@ -72,7 +72,7 @@ async function composeGroup<TOptions extends CommonOrchestratorCommandOptions>(
         // Ask the user whether to apply the command with the profile flag (which includes default
         // services too), only to the explicit service names in this profile (excluding defaults),
         // or strictly to services exclusive to this profile.
-        const scope = await pickComposeProfileCommandScope(context, node);
+        const scope = await pickComposeProfileCommandScope(context, node, commandName);
         if (scope === 'profile') {
             // Use --profile flag: command affects both this profile's services AND default services
             profileArg = [node.profileName];
@@ -87,10 +87,6 @@ async function composeGroup<TOptions extends CommonOrchestratorCommandOptions>(
             // Use explicit service list: command affects only the services belonging to this profile
             servicesArg = node.getServiceNames();
         }
-    } else if (node instanceof ContainerGroupTreeItem) {
-        // For project-level commands (run via Command Palette or by right-clicking the root project folder),
-        // we implicitly target all profiles so that the entire project is affected, rather than just default services.
-        profileArg = ['*'];
     }
 
     const options: TOptions = {
@@ -159,24 +155,24 @@ async function getComposeGroupLabels(node: ComposeGroupNode): Promise<{ [key: st
  * 'services' to apply only to the specific services in this profile,
  * or 'exclusive' to apply only to services that belong strictly to this profile.
  */
-async function pickComposeProfileCommandScope(context: IActionContext, node: ComposeProfileGroupTreeItem): Promise<'profile' | 'services' | 'exclusive'> {
+async function pickComposeProfileCommandScope(context: IActionContext, node: ComposeProfileGroupTreeItem, commandName: string): Promise<'profile' | 'services' | 'exclusive'> {
     const exclusiveNames = node.getExclusiveServiceNames();
-    
+
     const picks: IAzureQuickPickItem<'profile' | 'services' | 'exclusive'>[] = [
         {
             label: l10n.t('Apply to this profile and default services'),
-            description: l10n.t('Runs: docker compose --profile {0} <command>', node.label),
+            description: l10n.t('Runs: docker compose --profile {0} {1}', node.label, commandName),
             data: 'profile'
         },
         {
             label: l10n.t('Apply only to services in this profile'),
-            description: l10n.t('Runs: docker compose <command> {0}', node.getServiceNames().join(' ')),
+            description: l10n.t('Runs: docker compose {0} {1}', commandName, node.getServiceNames().join(' ')),
             data: 'services'
         },
         {
             label: l10n.t('Apply only to exclusive services'),
-            description: exclusiveNames.length 
-                ? l10n.t('Runs: docker compose <command> {0}', exclusiveNames.join(' '))
+            description: exclusiveNames.length
+                ? l10n.t('Runs: docker compose {0} {1}', commandName, exclusiveNames.join(' '))
                 : l10n.t('No services are exclusive to this profile'),
             data: 'exclusive'
         },

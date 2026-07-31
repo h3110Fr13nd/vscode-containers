@@ -5,15 +5,15 @@
 
 import { AzExtTreeItem, IActionContext } from "@microsoft/vscode-azext-utils";
 import { ThemeIcon, TreeItemCollapsibleState } from "vscode";
+import { ext } from '../../extensionVariables';
 import { LocalGroupTreeItemBase } from "../LocalGroupTreeItemBase";
 import { LocalRootTreeItemBase } from "../LocalRootTreeItemBase";
 import { getCommonGroupIcon } from "../settings/CommonProperties";
-import { ContainerProperty, getContainerStateIcon, NonComposeGroupName } from "./ContainerProperties";
-import { DockerContainerInfo } from "./ContainersTreeItem";
-import { ext } from '../../extensionVariables';
-import { ContainerTreeItem } from './ContainerTreeItem';
 import { ComposeProfileGroupTreeItem } from './ComposeProfileGroupTreeItem';
 import { getComposeProfilesForContainer, getComposeServiceProfiles, getComposeSourceFiles } from './composeProfiles';
+import { ContainerProperty, getContainerStateIcon, NonComposeGroupName } from "./ContainerProperties";
+import { DockerContainerInfo } from "./ContainersTreeItem";
+import { ContainerTreeItem } from './ContainerTreeItem';
 
 export class ContainerGroupTreeItem extends LocalGroupTreeItemBase<DockerContainerInfo, ContainerProperty> {
     public childTypeLabel: string = 'container';
@@ -88,41 +88,44 @@ export class ContainerGroupTreeItem extends LocalGroupTreeItemBase<DockerContain
             return super.loadMoreChildrenImpl(clearCache);
         }
 
-        const defaultContainers: DockerContainerInfo[] = [];
+        const defaultContainers: ContainerTreeItem[] = [];
         const profileContainers = new Map<string, DockerContainerInfo[]>();
 
         for (const container of containers) {
             const profiles = getComposeProfilesForContainer(container, serviceProfiles);
             if (!profiles.length) {
-                defaultContainers.push(container.containerItem as DockerContainerInfo);
+                defaultContainers.push(container);
                 continue;
             }
 
             for (const profile of profiles) {
-                const items = profileContainers.get(profile);
-                if (items) {
-                    items.push(container.containerItem as DockerContainerInfo);
-                } else {
+                if (!profileContainers.has(profile)) {
                     profileContainers.set(profile, [container.containerItem as DockerContainerInfo]);
+                } else {
+                    profileContainers.set(profile, [...profileContainers.get(profile)!, container.containerItem as DockerContainerInfo]);
                 }
             }
         }
 
-        const children: AzExtTreeItem[] = [];
-        if (defaultContainers.length > 0) {
-            children.push(new ComposeProfileGroupTreeItem(this, '__default__', defaultContainers, undefined, serviceProfiles));
+        if (profileContainers.size === 0) {
+            return containers;
         }
+
+        const children: AzExtTreeItem[] = [];
+
+        children.push(...defaultContainers);
 
         for (const profile of [...profileContainers.keys()].sort((a, b) => a.localeCompare(b))) {
             children.push(new ComposeProfileGroupTreeItem(this, profile, profileContainers.get(profile) ?? [], profile, serviceProfiles));
         }
+
 
         if (children.length > 0) {
             this._profileChildren = children;
             return children;
         }
 
-        return super.loadMoreChildrenImpl(clearCache);
+        return containers;
     }
 
     public isAncestorOfImpl(expectedContextValue: string | RegExp): boolean {
@@ -135,6 +138,15 @@ export class ContainerGroupTreeItem extends LocalGroupTreeItemBase<DockerContain
     }
 
     public compareChildrenImpl(item1: AzExtTreeItem, item2: AzExtTreeItem): number {
+        // If we're mixing loose default containers and profile folders, force loose containers to the top
+        if (item1 instanceof ContainerTreeItem && item2 instanceof ComposeProfileGroupTreeItem) {
+            return -1;
+        }
+        if (item1 instanceof ComposeProfileGroupTreeItem && item2 instanceof ContainerTreeItem) {
+            return 1;
+        }
+
+        // Maintain old logic just in case we ever mix undefined profile groups
         if (item1 instanceof ComposeProfileGroupTreeItem && item2 instanceof ComposeProfileGroupTreeItem) {
             if (item1.profileName === undefined) {
                 return -1;
@@ -143,6 +155,7 @@ export class ContainerGroupTreeItem extends LocalGroupTreeItemBase<DockerContain
                 return 1;
             }
         }
+        
         return super.compareChildrenImpl(item1, item2);
     }
 
