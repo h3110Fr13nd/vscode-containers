@@ -87,6 +87,10 @@ async function composeGroup<TOptions extends CommonOrchestratorCommandOptions>(
             // Use explicit service list: command affects only the services belonging to this profile
             servicesArg = node.getServiceNames();
         }
+    } else if (node instanceof ContainerGroupTreeItem) {
+        // For project-level commands (run via Command Palette or by right-clicking the root project folder),
+        // we implicitly target all profiles so that the entire project is affected, rather than just default services.
+        profileArg = ['*'];
     }
 
     const options: TOptions = {
