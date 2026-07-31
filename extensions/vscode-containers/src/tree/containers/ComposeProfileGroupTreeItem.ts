@@ -8,6 +8,7 @@ import { ThemeIcon, TreeItemCollapsibleState, l10n } from "vscode";
 import type { ContainerGroupTreeItem } from "./ContainerGroupTreeItem";
 import { ContainerTreeItem } from "./ContainerTreeItem";
 import { DockerContainerInfo } from "./ContainersTreeItem";
+import { getComposeProfilesForContainer } from "./composeProfiles";
 
 /**
  * A tree item that represents a Docker Compose profile group (or the "Default" group
@@ -111,6 +112,13 @@ export class ComposeProfileGroupTreeItem extends AzExtParentTreeItem {
         }
 
         return [...serviceNames].sort((a, b) => a.localeCompare(b));
+    }
+
+    public getProfilesForContainer(container: ContainerTreeItem): string[] {
+        if (!this._serviceProfiles) {
+            return [];
+        }
+        return getComposeProfilesForContainer(container, this._serviceProfiles) || [];
     }
 
     // -------------------------------------------------------------------------
